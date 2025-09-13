@@ -8,8 +8,8 @@ Pluggable encoders for KiviGo. This small Go module provides a simple `Encoder` 
 
 - Small and dependency-light encoder interface
 - Built-in implementations:
-  - JSON encoder (std lib)
-  - YAML encoder (gopkg.in/yaml.v3)
+  - JSON encoder
+  - YAML encoder
 - Easy to implement custom encoders (e.g. MsgPack, Gob, etc)
 - Unit tested and CI-friendly
 
@@ -24,7 +24,9 @@ go get github.com/kivigo/encoders/<encoder_name>
 Implementations must satisfy a small interface used by the KiviGo client:
 
 ```go
-package main
+package model
+
+import "context"
 
 // Encoder defines how values are serialized and deserialized when stored or retrieved from a backend in KiviGo.
 //
@@ -34,27 +36,28 @@ package main
 //
 // Example: using the JSON encoder, a struct will be marshaled to JSON before being saved in the database.
 type Encoder interface {
- // Encode serializes the given value into a byte slice.
- //
- // Example:
- //   data, err := encoder.Encode("hello world")
- //   if err != nil {
- //       log.Fatal(err)
- //   }
- //   fmt.Println("Encoded:", data)
- Encode(v any) ([]byte, error)
+    // Encode serializes the given value into a byte slice.
+    //
+    // Example:
+    //   data, err := encoder.Encode("hello world")
+    //   if err != nil {
+    //       log.Fatal(err)
+    //   }
+    //   fmt.Println("Encoded:", data)
+    Encode(ctx context.Context, v any) ([]byte, error)
 
- // Decode deserializes the given byte slice into the provided destination.
- //
- // Example:
- //   var s string
- //   err := encoder.Decode([]byte(`"hello world"`), &s)
- //   if err != nil {
- //       log.Fatal(err)
- //   }
- //   fmt.Println("Decoded:", s)
- Decode(data []byte, v any) error
+    // Decode deserializes the given byte slice into the provided destination.
+    //
+    // Example:
+    //   var s string
+    //   err := encoder.Decode([]byte(`"hello world"`), &s)
+    //   if err != nil {
+    //       log.Fatal(err)
+    //   }
+    //   fmt.Println("Decoded:", s)
+    Decode(ctx context.Context, data []byte, v any) error
 }
+
 
 ```
 
@@ -65,9 +68,9 @@ Use an encoder when creating the KiviGo client (example with JSON):
 ```go
 import (
     "context"
-    "github.com/azrod/kivigo"
-    "github.com/azrod/kivigo/encoders/json"
-    "github.com/azrod/kivigo/backend/local"
+    "github.com/kivigo/kivigo"
+    "github.com/kivigo/encoders/json"
+    "github.com/kivigo/kivigo/backend/local"
 )
 
 func example() error {
@@ -87,8 +90,8 @@ func example() error {
 
 ## Included encoders
 
-- encoders/json — JSON encoder using `encoding/json`
-- encoders/yaml — YAML encoder using [`github.com/goccy/go-yaml`](https://github.com/goccy/go-yaml)
+- `encoders/json` — JSON encoder using `encoding/json` *(**Dependency-free**, default)*
+- `encoders/yaml` — YAML encoder using [`github.com/goccy/go-yaml`](https://github.com/goccy/go-yaml)
 
 ## Writing a custom encoder
 
