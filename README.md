@@ -88,7 +88,7 @@ func example() error {
 ## Included encoders
 
 - encoders/json — JSON encoder using `encoding/json`
-- encoders/yaml — YAML encoder using `gopkg.in/yaml.v3`
+- encoders/yaml — YAML encoder using [`github.com/goccy/go-yaml`](https://github.com/goccy/go-yaml)
 
 ## Writing a custom encoder
 
