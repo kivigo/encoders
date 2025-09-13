@@ -1,4 +1,6 @@
-package encoders
+package main
+
+import "context"
 
 // Encoder defines how values are serialized and deserialized when stored or retrieved from a backend in KiviGo.
 //
@@ -16,7 +18,7 @@ type Encoder interface {
 	//       log.Fatal(err)
 	//   }
 	//   fmt.Println("Encoded:", data)
-	Encode(v any) ([]byte, error)
+	Encode(ctx context.Context, v any) ([]byte, error)
 
 	// Decode deserializes the given byte slice into the provided destination.
 	//
@@ -27,5 +29,5 @@ type Encoder interface {
 	//       log.Fatal(err)
 	//   }
 	//   fmt.Println("Decoded:", s)
-	Decode(data []byte, v any) error
+	Decode(ctx context.Context, data []byte, v any) error
 }
