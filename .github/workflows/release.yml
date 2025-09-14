@@ -1,5 +1,10 @@
 name: "🚀 Release encoder"
 
+# Allow parallel releases for different encoders, but serialize runs for the same encoder
+concurrency:
+  group: release-encoder-${{ github.event.inputs.encoder }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
