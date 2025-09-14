@@ -130,7 +130,8 @@ jobs:
         uses: golangci/golangci-lint-action@v8
         with:
           version: latest
-          args: --config .golangci.yml ./${{ needs.prepare.outputs.encoder }}/...
+          working-directory: ./${{ needs.prepare.outputs.encoder }}
+          args: --timeout=5m --config ../.golangci.yml ./...
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
