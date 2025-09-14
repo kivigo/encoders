@@ -45,8 +45,10 @@ jobs:
             echo "No encoder modules found" >&2
             exit 1
           fi
+          # Log discovered encoders
           printf '%s\n' "${encoders[@]}"
-          enc_json=$(printf '%s\n' "${encoders[@]}" | jq -R . | jq -s .)
+          # Produce compact JSON (single-line) to safely write to $GITHUB_OUTPUT
+          enc_json=$(printf '%s\n' "${encoders[@]}" | jq -R . | jq -s -c .)
           echo "discovered=$enc_json" >> "$GITHUB_OUTPUT"
 
       - name: "✅ Validate requested encoder (single only)"
