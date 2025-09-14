@@ -1,0 +1,158 @@
+name: "🚀 Release encoder"
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      encoder:
+        description: 'Encoder module to release (e.g. json or yaml). Releasing multiple or "all" is not allowed.'
+        required: true
+        type: string
+      version:
+        description: 'Release version (e.g., v1.2.3)'
+        required: true
+        type: string
+
+jobs:
+  prepare:
+    name: "🔧 Prepare"
+    runs-on: ubuntu-latest
+    outputs:
+      encoder: ${{ steps.set.outputs.encoder }}
+    steps:
+      - name: "📦 Checkout repo"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "🔎 Discover encoder modules"
+        id: discover
+        run: |
+          encoders=()
+          for d in */ ; do
+            if [ -f "${d%/}/go.mod" ]; then
+              encoders+=("${d%/}")
+            fi
+          done
+          if [ ${#encoders[@]} -eq 0 ]; then
+            echo "No encoder modules found" >&2
+            exit 1
+          fi
+          printf '%s\n' "${encoders[@]}"
+          enc_json=$(printf '%s\n' "${encoders[@]}" | jq -R . | jq -s .)
+          echo "discovered=$enc_json" >> "$GITHUB_OUTPUT"
+
+      - name: "✅ Validate requested encoder (single only)"
+        id: set
+        env:
+          REQUESTED: ${{ github.event.inputs.encoder }}
+          DISCOVERED: ${{ steps.discover.outputs.discovered }}
+        run: |
+          if [ -z "$REQUESTED" ]; then
+            echo "encoder input is required" >&2
+            exit 1
+          fi
+          if [ "$REQUESTED" = "all" ]; then
+            echo "Releasing 'all' encoders at once is not allowed by policy." >&2
+            exit 1
+          fi
+          mapfile -t arr < <(echo "$DISCOVERED" | jq -r '.[]')
+          found=false
+          for e in "${arr[@]}"; do
+            if [ "$e" = "$REQUESTED" ]; then
+              found=true
+              break
+            fi
+          done
+          if [ "$found" = "false" ]; then
+            echo "Requested encoder '$REQUESTED' not found. Available: ${arr[*]}" >&2
+            exit 1
+          fi
+          echo "encoder=$REQUESTED" >> "$GITHUB_OUTPUT"
+
+  release:
+    name: "🚀 Release encoder"
+    needs: prepare
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: "📦 Checkout"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "🔍 Validate version format"
+        id: validate
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version format: $VERSION (expected vMAJOR.MINOR.PATCH)" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: "🏷️ Set encoder & tag"
+        id: vars
+        run: |
+          ENC="${{ needs.prepare.outputs.encoder }}"
+          VER="${{ steps.validate.outputs.version }}"
+          TAG="${ENC}/${VER}"
+          echo "encoder=$ENC" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: "⛔ Check remote tag does not exist"
+        run: |
+          TAG="${{ steps.vars.outputs.tag }}"
+          echo "Checking remote for tag: $TAG"
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "refs/tags/${TAG}"; then
+            echo "Tag ${TAG} already exists on remote. Aborting." >&2
+            exit 1
+          fi
+          echo "Tag ${TAG} does not exist."
+
+      - name: "⚙️ Setup Go"
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: "🔎 Run golangci-lint for encoder"
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          args: --config .golangci.yml ./${{ needs.prepare.outputs.encoder }}/...
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "🧪 Run tests for encoder"
+        working-directory: ./${{ needs.prepare.outputs.encoder }}
+        run: |
+          go test ./... -timeout=300s
+
+      - name: "🏷️ Create tag locally"
+        run: |
+          TAG="${{ steps.vars.outputs.tag }}"
+          git tag "$TAG"
+          echo "Created tag $TAG"
+
+      - name: "📤 Push tag to remote"
+        run: |
+          TAG="${{ steps.vars.outputs.tag }}"
+          git push origin "$TAG"
+
+      - name: "📝 Create GitHub release"
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          release_name: "${{ steps.vars.outputs.tag }}"
+          body: "Release for encoder `${{ needs.prepare.outputs.encoder }}`: version ${{ steps.validate.outputs.version }}"
+          draft: false
+          prerelease: false
+
+      - name: "🔗 Show release URL"
+        run: |
+          echo "Release created: ${{ steps.create_release.outputs.html_url }}"
