@@ -1,2 +1,4 @@
 github.com/kivigo/encoders v0.0.0-20250913212214-a1728aae5ed0 h1:UcZQ12F3hkmY4JmmCRPprrVJsedRcHkEKqYrK3oaVQg=
 github.com/kivigo/encoders v0.0.0-20250913212214-a1728aae5ed0/go.mod h1:+utJHXtLaa0rS1IZ/81NECKFp9SkUTWvoIj3gWNMBsU=
+github.com/kivigo/encoders v0.0.0-20250914204035-08372f8a1b0f h1:jQVRicYoMZKFb3bbiaZ1YoN5Cuylk/NoZDuztKrZlX0=
+github.com/kivigo/encoders v0.0.0-20250914204035-08372f8a1b0f/go.mod h1:M6PxAe+gg0i37W42ofzCy3Lgwmie6MiKfkBtYnkkbns=

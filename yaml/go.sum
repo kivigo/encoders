@@ -2,3 +2,5 @@ github.com/goccy/go-yaml v1.18.0 h1:8W7wMFS12Pcas7KU+VVkaiCng+kG8QiFeFwzFb+rwuw=
 github.com/goccy/go-yaml v1.18.0/go.mod h1:XBurs7gK8ATbW4ZPGKgcbrY1Br56PdM69F7LkFRi1kA=
 github.com/kivigo/encoders v0.0.0-20250913212214-a1728aae5ed0 h1:UcZQ12F3hkmY4JmmCRPprrVJsedRcHkEKqYrK3oaVQg=
 github.com/kivigo/encoders v0.0.0-20250913212214-a1728aae5ed0/go.mod h1:+utJHXtLaa0rS1IZ/81NECKFp9SkUTWvoIj3gWNMBsU=
+github.com/kivigo/encoders v0.0.0-20250914204035-08372f8a1b0f h1:jQVRicYoMZKFb3bbiaZ1YoN5Cuylk/NoZDuztKrZlX0=
+github.com/kivigo/encoders v0.0.0-20250914204035-08372f8a1b0f/go.mod h1:M6PxAe+gg0i37W42ofzCy3Lgwmie6MiKfkBtYnkkbns=
