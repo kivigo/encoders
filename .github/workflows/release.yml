@@ -127,7 +127,7 @@ jobs:
           go-version: '1.23'
 
       - name: "🔎 Run golangci-lint for encoder"
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v8
         with:
           version: latest
           args: --config .golangci.yml ./${{ needs.prepare.outputs.encoder }}/...
