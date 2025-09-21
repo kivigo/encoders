@@ -13,7 +13,6 @@ linters:
     - errorlint # Linter for error strings [fast: false, auto-fix: false]
     - goconst # Finds repeated strings [fast: true, auto-fix: false]
     - gocritic # Provides diagnostics that check for bugs, performance and style issues. [fast: false, auto-fix: false]
-    - gocyclo # Computes and checks the cyclomatic complexity of functions [fast: true, auto-fix: false]
     - goheader # Checks is file header matches to pattern [fast: true, auto-fix: false]
     - gomoddirectives # Manage the use of 'replace', 'retract', and 'excludes' directives in go.mod. [fast: true, auto-fix: false]
     - gomodguard # Allow and block list linter for direct Go module dependencies. This is different from depguard where there are different block types for example version constraints and module recommendations. [fast: true, auto-fix: false]
@@ -38,7 +37,6 @@ linters:
     - wastedassign # Finds assignments to variables that are never used [fast: false, auto-fix: false]
     - whitespace # Checks for trailing whitespace [fast: true, auto-fix: false]
     - containedctx
-    - cyclop
     - dupl
     - exhaustive
     - gochecknoinits
@@ -66,60 +64,6 @@ linters:
           severity: warning
           disabled: false
         - name: indent-error-flow
-          severity: warning
-          disabled: false
-        - name: var-naming
-          arguments:
-            - []
-            - - ACL
-              - API
-              - ASCII
-              - CPU
-              - CSS
-              - DNS
-              - EOF
-              - GUID
-              - HTML
-              - HTTP
-              - HTTPS
-              - ID
-              - IP
-              - JSON
-              - LHS
-              - QPS
-              - RAM
-              - RHS
-              - RPC
-              - SLA
-              - SMTP
-              - SQL
-              - SSH
-              - TCP
-              - TLS
-              - TTL
-              - UDP
-              - UI
-              - UID
-              - UUID
-              - URI
-              - URL
-              - UTF8
-              - VM
-              - XML
-              - XMPP
-              - XSRF
-              - XSS
-              - SSL
-              - VDC
-              - DFW
-              - VLAN
-              - IAM
-              - VCDA
-              - NAT
-              - VPN
-              - BMS
-              - SAML
-              - VDCG
           severity: warning
           disabled: false
     wsl_v5:

@@ -78,7 +78,7 @@ jobs:
     needs: detect-changes
     strategy:
       matrix:
-        go-version: [1.23, 1.24, 1.25]
+        go-version: [1.24, 1.25]
     steps:
       - name: 🛎️ Checkout code
         uses: actions/checkout@v4
@@ -103,7 +103,7 @@ jobs:
     strategy:
       matrix:
         encoder: ${{ fromJson(needs.detect-changes.outputs.changed-encoders) }}
-        go-version: [1.23, 1.24, 1.25]
+        go-version: [1.24, 1.25]
     steps:
       - name: 🛎️ Checkout code
         uses: actions/checkout@v4
