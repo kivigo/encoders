@@ -83,7 +83,9 @@ jobs:
         id: diff
         run: |
           git fetch origin main
-          if git diff --exit-code origin/main -- .github/dependabot.yml; then
+          if [ ! -f .github/dependabot.yml ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          elif git diff --exit-code origin/main -- .github/dependabot.yml; then
             echo "changed=false" >> $GITHUB_OUTPUT
           else
             echo "changed=true" >> $GITHUB_OUTPUT
