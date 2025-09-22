@@ -1,0 +1,101 @@
+name: "🔄 Generate Dependabot Config"
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  generate-dependabot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🛎️ Checkout code
+        uses: actions/checkout@v4
+
+      - name: "🔍 Find encoder and compress modules"
+        id: find
+        run: |
+          encoders=()
+          compress=()
+          for d in */ ; do
+            if [ -f "${d%/}/.encoder" ]; then
+              encoders+=("${d%/}")
+            fi
+          done
+          for d in compress/*/ ; do
+            if [ -f "${d%/}/.compress" ]; then
+              compress+=("${d%/}")
+            fi
+          done
+
+          # Sort lists for deterministic output
+          IFS=$'\n' sorted_encoders=($(sort <<<"${encoders[*]}"))
+          IFS=$'\n' sorted_compress=($(sort <<<"${compress[*]}"))
+
+          echo "encoders=${sorted_encoders[@]}"
+          echo "compress=${sorted_compress[@]}"
+
+          echo "encoders=$(IFS=,; echo "${sorted_encoders[*]}")" >> $GITHUB_OUTPUT
+          echo "compress=$(IFS=,; echo "${sorted_compress[*]}")" >> $GITHUB_OUTPUT
+
+      - name: "📝 Generate dependabot.yml"
+        id: generate
+        run: |
+          mkdir -p .github
+          ENCODERS="${{ steps.find.outputs.encoders }}"
+          COMPRESS="${{ steps.find.outputs.compress }}"
+
+          echo "version: 2" > .github/dependabot.yml
+          echo "updates:" >> .github/dependabot.yml
+
+          # Encoders
+          IFS=',' read -ra ENCS <<< "$ENCODERS"
+          for enc in "${ENCS[@]}"; do
+            if [ -n "$enc" ]; then
+              echo "  - package-ecosystem: \"gomod\"" >> .github/dependabot.yml
+              echo "    directory: \"/$enc\"" >> .github/dependabot.yml
+              echo "    schedule:" >> .github/dependabot.yml
+              echo "      interval: \"weekly\"" >> .github/dependabot.yml
+              echo "    groups:" >> .github/dependabot.yml
+              echo "      all-deps:" >> .github/dependabot.yml
+              echo "        patterns: [\"*\"]" >> .github/dependabot.yml
+              echo "" >> .github/dependabot.yml
+            fi
+          done
+
+          # Compress
+          IFS=',' read -ra COMPS <<< "$COMPRESS"
+          for comp in "${COMPS[@]}"; do
+            if [ -n "$comp" ]; then
+              echo "  - package-ecosystem: \"gomod\"" >> .github/dependabot.yml
+              echo "    directory: \"/$comp\"" >> .github/dependabot.yml
+              echo "    schedule:" >> .github/dependabot.yml
+              echo "      interval: \"weekly\"" >> .github/dependabot.yml
+              echo "    groups:" >> .github/dependabot.yml
+              echo "      all-deps:" >> .github/dependabot.yml
+              echo "        patterns: [\"*\"]" >> .github/dependabot.yml
+              echo "" >> .github/dependabot.yml
+            fi
+          done
+
+          cat .github/dependabot.yml
+
+      - name: "🔍 Check if dependabot.yml changed"
+        id: diff
+        run: |
+          git fetch origin main
+          if git diff --exit-code origin/main -- .github/dependabot.yml; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "🔀 Create Pull Request for dependabot.yml"
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "ci: update dependabot config"
+          branch: "ci/update-dependabot-config"
+          title: "ci: update dependabot config"
+          body: "This PR updates the dependabot configuration based on current encoder and compress modules."
+          base: main
+          add-paths: .github/dependabot.yml
