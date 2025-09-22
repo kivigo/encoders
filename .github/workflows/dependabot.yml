@@ -4,6 +4,10 @@ on:
   workflow_dispatch:
   workflow_call:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   generate-dependabot:
     runs-on: ubuntu-latest
@@ -98,7 +102,7 @@ jobs:
 
       - name: "🔀 Create Pull Request for dependabot.yml"
         if: steps.diff.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           commit-message: "ci: update dependabot config"
           branch: "ci/update-dependabot-config"
