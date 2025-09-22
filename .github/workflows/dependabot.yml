@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: 🛎️ Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.CI_PAT }}
 
       - name: "🔍 Find encoder and compress modules"
         id: find
@@ -110,3 +112,4 @@ jobs:
           body: "This PR updates the dependabot configuration based on current encoder and compress modules."
           base: main
           add-paths: .github/dependabot.yml
+          token: ${{ secrets.CI_PAT }}
