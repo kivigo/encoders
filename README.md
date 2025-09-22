@@ -1,4 +1,4 @@
-<img align="left" width="140" src="https://raw.githubusercontent.com/kivigo/kivigo/refs/heads/main/website/static/img/logo-kivigo.png" alt="KiviGo Logo" />
+<img align="left" width="140" src="https://kivigo.github.io/img/logo-kivigo.png" alt="KiviGo Logo" />
 
 # KiviGo — Encoders
 
@@ -92,6 +92,7 @@ func example() error {
 
 - `encoders/json` — JSON encoder using `encoding/json` *(**Dependency-free**, default)*
 - `encoders/yaml` — YAML encoder using [`github.com/goccy/go-yaml`](https://github.com/goccy/go-yaml)
+- `encoders/encrypt` — Wrapper to encrypt/decrypt data using any other encoder (e.g. JSON + encryption)
 
 ## Writing a custom encoder
 
