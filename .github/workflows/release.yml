@@ -259,6 +259,5 @@ jobs:
   update-dependabot:
     name: "🔄 Update Dependabot Config"
     needs: release
-    runs-on: ubuntu-latest
     if: needs.release.result == 'success'
     uses: ./.github/workflows/dependabot.yml
