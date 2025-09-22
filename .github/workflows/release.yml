@@ -1,23 +1,48 @@
-name: "🚀 Release encoder"
-
-# Allow parallel releases for different encoders, but serialize runs for the same encoder
-concurrency:
-  group: release-encoder-${{ github.event.inputs.encoder }}
-  cancel-in-progress: false
+name: "🚀 Release encoder or compress"
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-module-${{ github.event.inputs.type }}-${{ github.event.inputs.module }}
+  cancel-in-progress: false
+
 on:
   workflow_dispatch:
     inputs:
-      encoder:
-        description: 'Encoder module to release (e.g. json or yaml). Releasing multiple or "all" is not allowed.'
+      type:
+        description: 'Type of module to release'
+        required: true
+        type: choice
+        options:
+          - encoder
+          - compress
+      module:
+        description: 'Module to release (e.g. json, lz4). Releasing multiple or "all" is not allowed.'
         required: true
         type: string
-      version:
-        description: 'Release version (e.g., v1.2.3)'
+      automatic_tag:
+        description: 'Automatically increment version and construct tag'
         required: true
+        default: true
+        type: boolean
+      bump:
+        description: 'If Automatic Tag is enabled, select which part to bump'
+        required: false
+        default: 'patch'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+      latest:
+        description: 'Also create/update the "latest" tag for this module'
+        required: true
+        default: true
+        type: boolean
+      version:
+        description: 'Release version (e.g., v0.1.0). Ignored if Automatic Tag is enabled.'
+        required: false
         type: string
 
 jobs:
@@ -25,63 +50,159 @@ jobs:
     name: "🔧 Prepare"
     runs-on: ubuntu-latest
     outputs:
-      encoder: ${{ steps.set.outputs.encoder }}
+      module: ${{ steps.set.outputs.module }}
+      type: ${{ steps.set.outputs.type }}
+      module_path: ${{ steps.set.outputs.module_path }}
     steps:
       - name: "📦 Checkout repo"
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: "🔎 Discover encoder modules"
+      - name: Fetch all tags
+        run: git fetch --tags --force
+      - name: "🔎 Discover modules"
         id: discover
         run: |
-          encoders=()
-          for d in */ ; do
-            if [ -f "${d%/}/go.mod" ]; then
-              encoders+=("${d%/}")
-            fi
-          done
-          if [ ${#encoders[@]} -eq 0 ]; then
-            echo "No encoder modules found" >&2
+          TYPE="${{ github.event.inputs.type }}"
+          modules=()
+          if [ "$TYPE" = "encoder" ]; then
+            for d in */ ; do
+              if [ -f "${d%/}/go.mod" ]; then
+                modules+=("${d%/}")
+              fi
+            done
+          elif [ "$TYPE" = "compress" ]; then
+            for d in compress/*/ ; do
+              if [ -f "${d%/}/.compress" ]; then
+                modules+=("${d%/}")
+              fi
+            done
+          else
+            echo "Unknown type: $TYPE" >&2
             exit 1
           fi
-          # Log discovered encoders
-          printf '%s\n' "${encoders[@]}"
-          # Produce compact JSON (single-line) to safely write to $GITHUB_OUTPUT
-          enc_json=$(printf '%s\n' "${encoders[@]}" | jq -R . | jq -s -c .)
+          if [ ${#modules[@]} -eq 0 ]; then
+            echo "No modules found for type $TYPE" >&2
+            exit 1
+          fi
+          printf '%s\n' "${modules[@]}"
+          enc_json=$(printf '%s\n' "${modules[@]}" | jq -R . | jq -s -c .)
           echo "discovered=$enc_json" >> "$GITHUB_OUTPUT"
 
-      - name: "✅ Validate requested encoder (single only)"
+      - name: "✅ Validate requested module (single only)"
         id: set
         env:
-          REQUESTED: ${{ github.event.inputs.encoder }}
+          REQUESTED: ${{ github.event.inputs.module }}
           DISCOVERED: ${{ steps.discover.outputs.discovered }}
+          TYPE: ${{ github.event.inputs.type }}
         run: |
           if [ -z "$REQUESTED" ]; then
-            echo "encoder input is required" >&2
+            echo "module input is required" >&2
             exit 1
           fi
           if [ "$REQUESTED" = "all" ]; then
-            echo "Releasing 'all' encoders at once is not allowed by policy." >&2
+            echo "Releasing 'all' modules at once is not allowed by policy." >&2
             exit 1
           fi
           mapfile -t arr < <(echo "$DISCOVERED" | jq -r '.[]')
           found=false
           for e in "${arr[@]}"; do
-            if [ "$e" = "$REQUESTED" ]; then
+            # e.g. e=json or e=compress/lz4
+            name="${e##*/}"
+            if [ "$name" = "$REQUESTED" ]; then
               found=true
+              module_path="$e"
               break
             fi
           done
           if [ "$found" = "false" ]; then
-            echo "Requested encoder '$REQUESTED' not found. Available: ${arr[*]}" >&2
+            echo "Requested module '$REQUESTED' not found. Available: ${arr[*]}" >&2
             exit 1
           fi
-          echo "encoder=$REQUESTED" >> "$GITHUB_OUTPUT"
+          echo "module=$REQUESTED" >> "$GITHUB_OUTPUT"
+          echo "type=$TYPE" >> "$GITHUB_OUTPUT"
+          echo "module_path=$module_path" >> "$GITHUB_OUTPUT"
+
+  validate-version:
+    name: "🔍 Validate and Compute Version"
+    runs-on: ubuntu-latest
+    needs: prepare
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+      tag: ${{ steps.validate.outputs.tag }}
+      latest_tag: ${{ steps.validate.outputs.latest_tag }}
+    steps:
+      - name: 🛎️ Checkout code
+        uses: actions/checkout@v4
+      - name: Fetch all tags
+        run: git fetch --tags --force
+      - name: "🔢 Compute version"
+        id: validate
+        run: |
+          TYPE="${{ needs.prepare.outputs.type }}"
+          MOD="${{ needs.prepare.outputs.module }}"
+          AUTO="${{ github.event.inputs.automatic_tag }}"
+          BUMP="${{ github.event.inputs.bump }}"
+          LATEST="${{ github.event.inputs.latest }}"
+          VERSION="${{ github.event.inputs.version }}"
+
+          if [[ "$TYPE" == "encoder" ]]; then
+            tag_prefix="${MOD}/"
+          else
+            tag_prefix="compress/${MOD}/"
+          fi
+
+          if [[ "$AUTO" == "true" ]]; then
+            latest_tag=$(git tag --list "${tag_prefix}v*" | sed "s|^${tag_prefix}||" | sort -V | tail -n1)
+            if [[ -z "$latest_tag" ]]; then
+              new_version="v0.1.0"
+            else
+              tag_version="${latest_tag#v}"
+              IFS='.' read -r major minor patch <<<"${tag_version}"
+              case "$BUMP" in
+                major)
+                  major=$((major+1)); minor=0; patch=0
+                  ;;
+                minor)
+                  minor=$((minor+1)); patch=0
+                  ;;
+                patch|*)
+                  patch=$((patch+1))
+                  ;;
+              esac
+              new_version="v${major}.${minor}.${patch}"
+            fi
+            VERSION="$new_version"
+            echo "🔢 Automatic tag enabled. New version: $VERSION"
+          else
+            if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "❌ Error: Version must follow semantic versioning format (e.g., v0.1.0)"
+              exit 1
+            fi
+            echo "🔢 Manual version: $VERSION"
+          fi
+
+          TAG="${tag_prefix}${VERSION}"
+          LATEST_TAG="${tag_prefix}latest"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+  lint:
+    name: 🧹 Run Go Lint
+    needs: [validate-version]
+    if: needs.validate-version.result == 'success'
+    uses: ./.github/workflows/go-lint.yml
+
+  test:
+    name: 🧪 Run Go Tests
+    needs: [validate-version]
+    if: needs.validate-version.result == 'success'
+    uses: ./.github/workflows/go-test.yml
 
   release:
-    name: "🚀 Release encoder"
-    needs: prepare
+    name: "🚀 Release module"
+    needs: [lint, test, prepare, validate-version]
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -92,75 +213,52 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "🔍 Validate version format"
-        id: validate
-        run: |
-          VERSION="${{ github.event.inputs.version }}"
-          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid version format: $VERSION (expected vMAJOR.MINOR.PATCH)" >&2
-            exit 1
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: "🏷️ Set encoder & tag"
-        id: vars
-        run: |
-          ENC="${{ needs.prepare.outputs.encoder }}"
-          VER="${{ steps.validate.outputs.version }}"
-          TAG="${ENC}/${VER}"
-          echo "encoder=$ENC" >> $GITHUB_OUTPUT
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-
       - name: "⛔ Check remote tag does not exist"
         run: |
-          TAG="${{ steps.vars.outputs.tag }}"
-          echo "Checking remote for tag: $TAG"
+          TAG="${{ needs.validate-version.outputs.tag }}"
           if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "refs/tags/${TAG}"; then
             echo "Tag ${TAG} already exists on remote. Aborting." >&2
             exit 1
           fi
-          echo "Tag ${TAG} does not exist."
 
-      - name: "⚙️ Setup Go"
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.23'
-
-      - name: "🔎 Run golangci-lint for encoder"
-        uses: golangci/golangci-lint-action@v8
-        with:
-          version: latest
-          working-directory: ./${{ needs.prepare.outputs.encoder }}
-          args: --timeout=5m --config ../.golangci.yml ./...
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: "🧪 Run tests for encoder"
-        working-directory: ./${{ needs.prepare.outputs.encoder }}
+      - name: "🏷️ Create and push version tag"
         run: |
-          go test ./... -timeout=300s
-
-      - name: "🏷️ Create tag locally"
-        run: |
-          TAG="${{ steps.vars.outputs.tag }}"
+          TAG="${{ needs.validate-version.outputs.tag }}"
           git tag "$TAG"
-          echo "Created tag $TAG"
-
-      - name: "📤 Push tag to remote"
-        run: |
-          TAG="${{ steps.vars.outputs.tag }}"
           git push origin "$TAG"
+
+      - name: "🏷️ Create/update latest tag"
+        if: ${{ github.event.inputs.latest == 'true' }}
+        run: |
+          LATEST_TAG="${{ needs.validate-version.outputs.latest_tag }}"
+          # Delete remote latest tag if exists
+          if git ls-remote --tags origin | grep -q "refs/tags/${LATEST_TAG}$"; then
+            git push --delete origin "$LATEST_TAG"
+          fi
+          # Delete local latest tag if exists
+          if git tag -l | grep -q "^${LATEST_TAG}$"; then
+            git tag -d "$LATEST_TAG"
+          fi
+          git tag "$LATEST_TAG"
+          git push origin "$LATEST_TAG"
 
       - name: "📝 Create GitHub release"
         id: create_release
         uses: actions/create-release@v1
         with:
-          tag_name: ${{ steps.vars.outputs.tag }}
-          release_name: "${{ steps.vars.outputs.tag }}"
-          body: "Release for encoder `${{ needs.prepare.outputs.encoder }}`: version ${{ steps.validate.outputs.version }}"
+          tag_name: ${{ needs.validate-version.outputs.tag }}
+          release_name: "${{ needs.validate-version.outputs.tag }}"
+          body: "Release for ${{ needs.prepare.outputs.type }} `${{ needs.prepare.outputs.module }}`: version ${{ needs.validate-version.outputs.version }}"
           draft: false
           prerelease: false
 
       - name: "🔗 Show release URL"
         run: |
           echo "Release created: ${{ steps.create_release.outputs.html_url }}"
+
+  update-dependabot:
+    name: "🔄 Update Dependabot Config"
+    needs: release
+    runs-on: ubuntu-latest
+    if: needs.release.result == 'success'
+    uses: ./.github/workflows/dependabot.yml
