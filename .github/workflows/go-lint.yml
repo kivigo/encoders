@@ -3,6 +3,16 @@ name: Go Lint
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_call:
+    inputs:
+      type:
+        description: 'Type of module to lint (encoder or compress)'
+        required: false
+        type: string
+      module:
+        description: 'Module to lint (e.g. json, lz4)'
+        required: false
+        type: string
 
 jobs:
   # Detect which modules were changed
@@ -13,63 +23,110 @@ jobs:
       main-changed: ${{ steps.changes.outputs.main }}
       encoders-changed: ${{ steps.changes.outputs.encoders }}
       changed-encoders: ${{ steps.changes.outputs.changed-encoders }}
+      compress-changed: ${{ steps.changes.outputs.compress }}
+      changed-compress: ${{ steps.changes.outputs.changed-compress }}
     steps:
       - name: 🛎️ Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 🔍 Detect changed modules
+      - name: Detect changed modules
         id: changes
         run: |
-          # Get list of changed files
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}) || {
-              echo "Failed to get diff, falling back to HEAD~1"
-              changed_files=$(git diff --name-only HEAD~1 HEAD)
-            }
-          else
-            changed_files=$(git diff --name-only HEAD~1 HEAD)
-          fi
-          
-          echo "Changed files:"
-          echo "$changed_files"
-          
-          # Check if main/core module changed (root go files, go.mod/go.sum, model/)
-          main_changed="false"
-          if echo "$changed_files" | grep -E "^(go\.mod|go\.sum|[^/]*\.go|model/)" > /dev/null; then
-            main_changed="true"
-            echo "✅ Main/core module files changed"
-          fi
-          echo "main=$main_changed" >> $GITHUB_OUTPUT
-          
-          # Detect encoder modules automatically by presence of a .encoder file in top-level dirs
-          encoders_changed="false"
-          changed_encoders_list=()
-          
-          for dir in */; do
-            # Consider a directory an encoder if it contains a ".encoder" file
-            if [[ -f "${dir}.encoder" ]]; then
-              enc_name=$(basename "$dir")
-              # Check if any file in that directory changed
-              if echo "$changed_files" | grep -E "^${dir}" > /dev/null; then
-                encoders_changed="true"
-                changed_encoders_list+=("$enc_name")
-                echo "✅ Encoder $enc_name files changed"
-              fi
+          # If called from workflow_call with inputs, use those directly
+          TYPE="${{ inputs.type }}"
+          MODULE="${{ inputs.module }}"
+
+          changed_files=""
+          if [ -n "$TYPE" ] && [ -n "$MODULE" ]; then
+            # Called from release workflow: only consider the requested module
+            if [ "$TYPE" = "encoder" ]; then
+              encoders_changed="true"
+              changed_encoders_json=$(printf '%s\n' "$MODULE" | jq -R . | jq -s -c .)
+              compress_changed="false"
+              changed_compress_json="[]"
+            elif [ "$TYPE" = "compress" ]; then
+              compress_changed="true"
+              changed_compress_json=$(printf '%s\n' "$MODULE" | jq -R . | jq -s -c .)
+              encoders_changed="false"
+              changed_encoders_json="[]"
+            else
+              encoders_changed="false"
+              changed_encoders_json="[]"
+              compress_changed="false"
+              changed_compress_json="[]"
             fi
-          done
-          
-          echo "encoders=$encoders_changed" >> $GITHUB_OUTPUT
-          
-          # Convert array to JSON for matrix
-          if [ ${#changed_encoders_list[@]} -gt 0 ]; then
-            changed_encoders_json=$(printf '%s\n' "${changed_encoders_list[@]}" | jq -R . | jq -s -c .)
+            main_changed="false"
           else
-            changed_encoders_json="[]"
+            # Standard PR detection
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}) || {
+                echo "Failed to get diff, falling back to HEAD~1"
+                changed_files=$(git diff --name-only HEAD~1 HEAD)
+              }
+            else
+              changed_files=$(git diff --name-only HEAD~1 HEAD)
+            fi
+
+            echo "Changed files:"
+            echo "$changed_files"
+
+            # Check if main/core module changed (root go files, go.mod/go.sum, model/)
+            main_changed="false"
+            if echo "$changed_files" | grep -E "^(go\.mod|go\.sum|[^/]*\.go|model/)" > /dev/null; then
+              main_changed="true"
+              echo "✅ Main/core module files changed"
+            fi
+
+            # Detect encoder modules automatically by presence of a .encoder file in top-level dirs
+            encoders_changed="false"
+            changed_encoders_list=()
+            for dir in */; do
+              if [[ -f "${dir}.encoder" ]]; then
+                enc_name=$(basename "$dir")
+                if echo "$changed_files" | grep -E "^${dir}" > /dev/null; then
+                  encoders_changed="true"
+                  changed_encoders_list+=("$enc_name")
+                  echo "✅ Encoder $enc_name files changed"
+                fi
+              fi
+            done
+
+            # Detect compress modules by presence of .compress in compress/<name>/
+            compress_changed="false"
+            changed_compress_list=()
+            for dir in compress/*/; do
+              if [[ -f "${dir}.compress" ]]; then
+                comp_name=$(basename "$dir")
+                if echo "$changed_files" | grep -E "^compress/${comp_name}/" > /dev/null; then
+                  compress_changed="true"
+                  changed_compress_list+=("$comp_name")
+                  echo "✅ Compress $comp_name files changed"
+                fi
+              fi
+            done
+
+            # Convert arrays to JSON for matrix
+            if [ ${#changed_encoders_list[@]} -gt 0 ]; then
+              changed_encoders_json=$(printf '%s\n' "${changed_encoders_list[@]}" | jq -R . | jq -s -c .)
+            else
+              changed_encoders_json="[]"
+            fi
+            if [ ${#changed_compress_list[@]} -gt 0 ]; then
+              changed_compress_json=$(printf '%s\n' "${changed_compress_list[@]}" | jq -R . | jq -s -c .)
+            else
+              changed_compress_json="[]"
+            fi
           fi
+
+          echo "main=$main_changed" >> $GITHUB_OUTPUT
+          echo "encoders=$encoders_changed" >> $GITHUB_OUTPUT
           echo "changed-encoders=$changed_encoders_json" >> $GITHUB_OUTPUT
+          echo "compress=$compress_changed" >> $GITHUB_OUTPUT
+          echo "changed-compress=$changed_compress_json" >> $GITHUB_OUTPUT
           echo "Changed encoders: $changed_encoders_json"
+          echo "Changed compress: $changed_compress_json"
 
   # Lint main package if main/core files changed
   lint-main:
@@ -81,10 +138,10 @@ jobs:
         go-version: [1.24, 1.25]
     steps:
       - name: 🛎️ Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 🏗️ Set up Go ${{ matrix.go-version }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
 
@@ -95,7 +152,7 @@ jobs:
           working-directory: .
           args: --timeout=5m ./...
 
-  # Lint changed encoder modules only (detected via .encoder files)
+  # Lint changed encoder modules only (detected via .encoder files or workflow_call input)
   lint-encoders:
     if: github.actor != 'dependabot[bot]' && needs.detect-changes.outputs.encoders-changed == 'true' && needs.detect-changes.outputs.changed-encoders != '[]'
     runs-on: ubuntu-latest
@@ -106,10 +163,10 @@ jobs:
         go-version: [1.24, 1.25]
     steps:
       - name: 🛎️ Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 🏗️ Set up Go ${{ matrix.go-version }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
 
@@ -120,11 +177,36 @@ jobs:
           working-directory: ${{ matrix.encoder }}
           args: --timeout=5m --config ../.golangci.yml ./...
 
+  # Lint changed compress modules only (detected via .compress files or workflow_call input)
+  lint-compress:
+    if: github.actor != 'dependabot[bot]' && needs.detect-changes.outputs.compress-changed == 'true' && needs.detect-changes.outputs.changed-compress != '[]'
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    strategy:
+      matrix:
+        compress: ${{ fromJson(needs.detect-changes.outputs.changed-compress) }}
+        go-version: [1.24, 1.25]
+    steps:
+      - name: 🛎️ Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🏗️ Set up Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: 📥 Install golangci-lint and run on compress/${{ matrix.compress }}
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          working-directory: compress/${{ matrix.compress }}
+          args: --timeout=5m --config ../../.golangci.yml ./...
+
   # Generate lint summary for PR
   lint-summary:
     if: github.actor != 'dependabot[bot]' && always()
     runs-on: ubuntu-latest
-    needs: [detect-changes, lint-main, lint-encoders]
+    needs: [detect-changes, lint-main, lint-encoders, lint-compress]
     steps:
       - name: 🔍 Generate lint summary
         run: |
@@ -159,4 +241,20 @@ jobs:
             fi
           else
             echo "⏭️ No encoder changes detected - linting skipped" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🗜️ Compress Modules" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.detect-changes.outputs.compress-changed }}" = "true" ]; then
+            echo "Changed compress: ${{ needs.detect-changes.outputs.changed-compress }}" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ needs.lint-compress.result }}" = "success" ]; then
+              echo "✅ Compress linting passed" >> $GITHUB_STEP_SUMMARY
+            elif [ "${{ needs.lint-compress.result }}" = "failure" ]; then
+              echo "❌ Compress linting failed" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⏸️ Compress linting skipped" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "⏭️ No compress changes detected - linting skipped" >> $GITHUB_STEP_SUMMARY
           fi
