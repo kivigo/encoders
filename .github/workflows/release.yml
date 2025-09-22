@@ -190,15 +190,21 @@ jobs:
 
   lint:
     name: 🧹 Run Go Lint
-    needs: [validate-version]
+    needs: [prepare, validate-version]
     if: needs.validate-version.result == 'success'
     uses: ./.github/workflows/go-lint.yml
+    with:
+      type: ${{ needs.prepare.outputs.type }}
+      module: ${{ needs.prepare.outputs.module }}
 
   test:
     name: 🧪 Run Go Tests
-    needs: [validate-version]
+    needs: [prepare, validate-version]
     if: needs.validate-version.result == 'success'
     uses: ./.github/workflows/go-test.yml
+    with:
+      type: ${{ needs.prepare.outputs.type }}
+      module: ${{ needs.prepare.outputs.module }}
 
   release:
     name: "🚀 Release module"
@@ -261,3 +267,5 @@ jobs:
     needs: release
     if: needs.release.result == 'success'
     uses: ./.github/workflows/dependabot.yml
+    secrets:
+      CI_PAT: ${{ secrets.CI_PAT }}
