@@ -1,7 +1,5 @@
 module github.com/kivigo/encoders/compress
 
-go 1.25.1
+go 1.24.0
 
-replace github.com/kivigo/encoders => ../
-
-require github.com/kivigo/encoders v0.0.0-20250914204035-08372f8a1b0f
+require github.com/kivigo/encoders v0.0.0-20250922203640-2b78b8576f98
