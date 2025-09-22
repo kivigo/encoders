@@ -3,6 +3,10 @@ name: "🔄 Generate Dependabot Config"
 on:
   workflow_dispatch:
   workflow_call:
+    secrets:
+      CI_PAT:
+        required: true
+        description: 'Personal Access Token with repo permissions to create PRs'
 
 jobs:
   generate-dependabot:
