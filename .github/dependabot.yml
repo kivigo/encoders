@@ -1,0 +1,42 @@
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/compress"
+    schedule:
+      interval: "weekly"
+    groups:
+      all-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: "gomod"
+    directory: "/encrypt"
+    schedule:
+      interval: "weekly"
+    groups:
+      all-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: "gomod"
+    directory: "/json"
+    schedule:
+      interval: "weekly"
+    groups:
+      all-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: "gomod"
+    directory: "/yaml"
+    schedule:
+      interval: "weekly"
+    groups:
+      all-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: "gomod"
+    directory: "/compress/gzip"
+    schedule:
+      interval: "weekly"
+    groups:
+      all-deps:
+        patterns: ["*"]
+
