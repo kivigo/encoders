@@ -19,6 +19,14 @@ Pluggable encoders for KiviGo. This small Go module provides a simple `Encoder` 
 go get github.com/kivigo/encoders/<encoder_name>
 ```
 
+## Included encoders
+
+- [`encoders/json`](https://pkg.go.dev/github.com/kivigo/encoders/json) — JSON encoder using `encoding/json` *(**Dependency-free**, default)*
+- [`encoders/yaml`](https://pkg.go.dev/github.com/kivigo/encoders/yaml) — YAML encoder using [`github.com/goccy/go-yaml`](https://github.com/goccy/go-yaml)
+- [`encoders/encrypt`](https://pkg.go.dev/github.com/kivigo/encoders/encrypt) — Encrypt encoder using [:heartbeat: `github.com/azrod/cryptio`](https://github.com/azrod/cryptio). Wrapper to encrypt/decrypt data using any other encoder (e.g. JSON + encryption)
+- [`encoders/compress`](https://pkg.go.dev/github.com/kivigo/encoders/compress) — Compression wrapper using various algorithms (LZ4, Gzip, custom). Each compression algorithm is released separately to keep dependencies minimal. Wrapper to compress/decompress data using any other encoder (e.g. JSON + compression or JSON + compression + encryption). You can write your own compression algorithm by implementing the [`model.Compressor`](https://pkg.go.dev/github.com/kivigo/encoders@main/model#Compressor) interface.
+  - [`encoders/compress/gzip`](https://pkg.go.dev/github.com/kivigo/encoders/compress/gzip) — Gzip compression using `compress/gzip` *(**Dependency-free**)*
+
 ## Encoder interface
 
 Implementations must satisfy a small interface used by the KiviGo client:
@@ -88,12 +96,6 @@ func example() error {
 }
 ```
 
-## Included encoders
-
-- `encoders/json` — JSON encoder using `encoding/json` *(**Dependency-free**, default)*
-- `encoders/yaml` — YAML encoder using [`github.com/goccy/go-yaml`](https://github.com/goccy/go-yaml)
-- `encoders/encrypt` — Wrapper to encrypt/decrypt data using any other encoder (e.g. JSON + encryption)
-
 ## Writing a custom encoder
 
 Create a type that implements `Encoder` and pass it to the client via `kivigo.Option{Encoder: myEncoder}`. Keep operations context-aware and error-returning.
@@ -114,4 +116,4 @@ go test ./...
 
 ## License
 
-MIT — see the root repository LICENSE file.
+Mozilla Public License v2.0. See [LICENSE](LICENSE) for details.
