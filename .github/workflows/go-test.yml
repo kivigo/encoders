@@ -128,8 +128,8 @@ jobs:
           echo "Changed encoders: $changed_encoders_json"
           echo "Changed compress: $changed_compress_json"
 
-  # Lint main package if main/core files changed
-  lint-main:
+  # Test main package if main/core files changed
+  test-main:
     if: github.actor != 'dependabot[bot]' && needs.detect-changes.outputs.main-changed == 'true'
     runs-on: ubuntu-latest
     needs: detect-changes
@@ -152,8 +152,8 @@ jobs:
           working-directory: .
           args: --timeout=5m ./...
 
-  # Lint changed encoder modules only (detected via .encoder files or workflow_call input)
-  lint-encoders:
+  # test changed encoder modules only (detected via .encoder files or workflow_call input)
+  test-encoders:
     if: github.actor != 'dependabot[bot]' && needs.detect-changes.outputs.encoders-changed == 'true' && needs.detect-changes.outputs.changed-encoders != '[]'
     runs-on: ubuntu-latest
     needs: detect-changes
@@ -177,8 +177,8 @@ jobs:
           working-directory: ${{ matrix.encoder }}
           args: --timeout=5m --config ../.golangci.yml ./...
 
-  # Lint changed compress modules only (detected via .compress files or workflow_call input)
-  lint-compress:
+  # test changed compress modules only (detected via .compress files or workflow_call input)
+  test-compress:
     if: github.actor != 'dependabot[bot]' && needs.detect-changes.outputs.compress-changed == 'true' && needs.detect-changes.outputs.changed-compress != '[]'
     runs-on: ubuntu-latest
     needs: detect-changes
@@ -202,11 +202,11 @@ jobs:
           working-directory: compress/${{ matrix.compress }}
           args: --timeout=5m --config ../../.golangci.yml ./...
 
-  # Generate lint summary for PR
-  lint-summary:
+  # Generate test summary for PR
+  test-summary:
     if: github.actor != 'dependabot[bot]' && always()
     runs-on: ubuntu-latest
-    needs: [detect-changes, lint-main, lint-encoders, lint-compress]
+    needs: [detect-changes, test-main, test-encoders, test-compress]
     steps:
       - name: 🔍 Generate lint summary
         run: |
