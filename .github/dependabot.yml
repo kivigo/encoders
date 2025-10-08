@@ -40,3 +40,11 @@ updates:
       all-deps:
         patterns: ["*"]
 
+  - package-ecosystem: "gomod"
+    directory: "/compress/lz4"
+    schedule:
+      interval: "weekly"
+    groups:
+      all-deps:
+        patterns: ["*"]
+
